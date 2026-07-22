@@ -15,7 +15,7 @@ def _get_timeframe(tr_str : str) -> TimeFrame:
         "1Hour": TimeFrame.Hour,
         "1Day": TimeFrame.Day,
     }
-    return mapping.get(tf_str, TimeFrame.Day)
+    return mapping.get(tr_str, TimeFrame.Day)
 
 def _cache_path(symbol: str) -> str:
     os.makedirs(config.CACHE_DIR, exist_ok = True)
@@ -27,7 +27,7 @@ def load_historical_bars(symbol: str, use_cache: bool = True) -> pd.DataFrame:
     Returns a DataFrame indexed from timestamp with columns: open, high, low, close, volume.
     """
 
-    path = _cahce_path(symbol)
+    path = _cache_path(symbol)
 
     if use_cache and os.path.exists(path):
         return pd.read_csv(path, index_col = 0, parse_dates = True)
@@ -50,3 +50,9 @@ def load_historical_bars(symbol: str, use_cache: bool = True) -> pd.DataFrame:
 
     df.to_csv(path)
     return df
+
+if __name__ == "__main__":
+    # quick manual test: run `python data/loader.py` from repo root
+    data = load_historical_bars(config.SYMBOLS[0])
+    print(data.head())
+    print(f"\nLoaded {len(data)} bars for {config.SYMBOLS[0]}")

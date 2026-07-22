@@ -9,7 +9,7 @@ ALPACA_SECRET_KEY = os.getenv("ALPACA_SECRET_KEY")
 ALPACA_BASE_URL = "https://paper-api.alpaca.markets"
 
 # Set of stocks
-SYMBOLS = ["APPL"] # expandable
+SYMBOLS = ["AAPL"] # expandable
 TIMEFRAME = "1Day" # alterable to 1min...
 
 # Backtest settings 
