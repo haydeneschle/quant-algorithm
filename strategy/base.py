@@ -7,7 +7,7 @@ class Signal(Enum):
     SELL = "SELL"
     HOLD = "HOLD"
 
-class strategy(ABC):
+class Strategy(ABC):
     """
     Abstract base class for all trading strategies.
     Every strategy must implement generate_signals(),

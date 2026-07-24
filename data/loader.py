@@ -19,7 +19,7 @@ def _get_timeframe(tr_str : str) -> TimeFrame:
 
 def _cache_path(symbol: str) -> str:
     os.makedirs(config.CACHE_DIR, exist_ok = True)
-    return os.path.join(config.CACHE_DIR, f"{symbol}_{config.START_DATE}_{config.END_DATE}.csv")
+    return os.path.join(config.CACHE_DIR, f"{symbol}_{config.TIMEFRAME}_{config.START_DATE}_{config.END_DATE}.csv")
 
 def load_historical_bars(symbol: str, use_cache: bool = True) -> pd.DataFrame:
     """
