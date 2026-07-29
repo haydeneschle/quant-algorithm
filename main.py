@@ -1,14 +1,31 @@
+"""
+Entry point for running strategy comparisons.
+
+Loads historical data for each configured symbol, backtests each
+strategy against it, and prints both a per-symbol breakdown and an
+aggregate summary — all benchmarked against simply buying and
+holding the same symbol over the same period.
+"""
+
 from data.loader import load_historical_bars
 from strategy.moving_average import MovingAverageCrossover
 from strategy.mean_reversion import MeanReversion
+from strategy.regime import RegimeSwitchingStrategy
 from portfolio.portfolio import Portfolio
 from portfolio.risk import RiskGovernor, RiskState
 from backtest.engine import BacktestEngine
 from backtest.metrics import summary, buy_and_hold_return
 import config
-from strategy.regime import RegimeSwitchingStrategy
+
 
 def run_strategy(strategy, data):
+    """
+    Run a single strategy through a fresh backtest.
+
+    A new Portfolio and RiskGovernor are created per strategy so that
+    results are fully independent — no shared state (cash, positions,
+    risk state) leaks between strategies being compared.
+    """
     risk_governor = RiskGovernor(starting_state=RiskState.WEAKLY_CONSERVATIVE)
     portfolio = Portfolio(
         initial_capital=config.INITIAL_CAPITAL,
@@ -20,9 +37,21 @@ def run_strategy(strategy, data):
 
 
 def print_comparison(results: dict, benchmarks: dict):
+    """
+    Print a per-symbol, per-strategy table of all metrics, with the
+    buy-and-hold return for that symbol shown alongside for context.
+
+    results:    {symbol: {strategy_name: metrics_dict}}
+    benchmarks: {symbol: buy_and_hold_return_pct}
+    """
     metrics = ["total_return_pct", "sharpe_ratio", "max_drawdown_pct", "win_rate_pct", "num_trades"]
     col_width = 16
-    header = f"{'Symbol':<8}{'Strategy':<16}" + "".join(f"{m:>{col_width}}" for m in metrics) + f"{'buy_hold_pct':>{col_width}}"
+
+    header = (
+        f"{'Symbol':<8}{'Strategy':<16}"
+        + "".join(f"{m:>{col_width}}" for m in metrics)
+        + f"{'buy_hold_pct':>{col_width}}"
+    )
     print("\n" + header)
     print("-" * len(header))
 
@@ -36,20 +65,26 @@ def print_comparison(results: dict, benchmarks: dict):
 
 
 def print_aggregate_summary(results: dict, benchmarks: dict):
+    """
+    Print each strategy's metrics averaged across every symbol tested,
+    plus the average buy-and-hold return for comparison. This is the
+    headline table — per-symbol results can vary a lot by name, so
+    the aggregate is what actually answers "did this strategy work?"
+    """
     strategy_names = list(next(iter(results.values())).keys())
-    print("\n=== Aggregate Summary (averaged across all symbols) ===")
-    col_width = 18
     metrics = ["total_return_pct", "sharpe_ratio", "max_drawdown_pct", "win_rate_pct"]
+    col_width = 18
 
+    print("\n=== Aggregate Summary (averaged across all symbols) ===")
     header = f"{'Strategy':<16}" + "".join(f"{m:>{col_width}}" for m in metrics)
     print(header)
     print("-" * len(header))
 
     for strat_name in strategy_names:
-        avg_metrics = {}
-        for m in metrics:
-            values = [results[symbol][strat_name][m] for symbol in results]
-            avg_metrics[m] = sum(values) / len(values)
+        avg_metrics = {
+            m: sum(results[symbol][strat_name][m] for symbol in results) / len(results)
+            for m in metrics
+        }
 
         row = f"{strat_name:<16}"
         for m in metrics:
@@ -61,6 +96,9 @@ def print_aggregate_summary(results: dict, benchmarks: dict):
 
 
 def main():
+    # Each entry is a zero-arg factory (not an instance) so every symbol
+    # gets a fresh strategy object — strategies are stateless here, but
+    # this avoids any risk of state leaking between runs if that changes.
     strategies = {
         "MA Crossover": lambda: MovingAverageCrossover(
             short_window=config.SHORT_WINDOW,
@@ -75,7 +113,7 @@ def main():
 
     for symbol in config.SYMBOLS:
         data = load_historical_bars(symbol)
-        data.attrs["symbol"] = symbol
+        data.attrs["symbol"] = symbol  # used by BacktestEngine to tag trades
 
         benchmarks[symbol] = buy_and_hold_return(data)
 

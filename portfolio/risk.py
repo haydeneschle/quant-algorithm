@@ -1,4 +1,12 @@
-# portfolio/risk.py
+"""
+Dynamic risk management via a 2-bit saturating counter, modeled on
+the classic bimodal branch predictor used in CPU design. This is a
+different sizing dimension from the ATR-based volatility scalar in
+volatility.py: this one reacts to *how the strategy itself has been
+performing*, whereas the ATR scalar reacts to *how volatile the
+market currently is*. The two multiply together in Portfolio.
+"""
+
 from enum import IntEnum
 from dataclasses import dataclass
 
@@ -20,6 +28,11 @@ class RiskState(IntEnum):
 
 @dataclass(frozen=True)
 class RiskBounds:
+    """
+    The min/max range each risk parameter can take. RiskGovernor
+    interpolates continuously within these bounds based on the
+    current RiskState, rather than jumping between fixed tiers.
+    """
     min_position_size: float = 0.05
     max_position_size: float = 0.20
     min_stop_loss_pct: float = 0.03
@@ -30,6 +43,7 @@ class RiskBounds:
 
 @dataclass(frozen=True)
 class RiskProfile:
+    """The concrete, resolved risk parameters for the current state."""
     max_position_size: float
     stop_loss_pct: float
     max_open_positions: int
@@ -63,8 +77,13 @@ class RiskGovernor:
 
     @property
     def current_profile(self) -> RiskProfile:
-        # Interpolate smoothly across the 4 states (0..3) rather than jumping between fixed tiers
-        t = self.state / max(RiskState)  # normalized 0.0 -> 1.0
+        """
+        Resolve the current RiskState into concrete sizing parameters
+        by linearly interpolating across RiskBounds. Using a continuous
+        interpolation (rather than a lookup table per state) means the
+        bounds can be tuned independently of how many discrete states exist.
+        """
+        t = self.state / max(RiskState)  # normalize state to 0.0 -> 1.0
 
         b = self.bounds
         position_size = b.min_position_size + t * (b.max_position_size - b.min_position_size)

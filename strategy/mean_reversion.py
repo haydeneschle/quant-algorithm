@@ -1,4 +1,8 @@
-# strategy/mean_reversion.py
+"""
+Mean Reversion strategy: bets that price extremes relative to a
+rolling average tend to revert back toward that average.
+"""
+
 import pandas as pd
 from strategy.base import Strategy, Signal
 
@@ -6,8 +10,17 @@ from strategy.base import Strategy, Signal
 class MeanReversion(Strategy):
     """
     Bollinger Band-style mean reversion.
-    BUY when price drops below (mean - k*std) — assumes it will revert upward.
-    SELL when price rises above (mean + k*std) — assumes it will revert downward.
+    BUY on the bar where price first drops below (mean - k*std) —
+    betting the price will revert back upward.
+    SELL on the bar where price first rises above (mean + k*std) —
+    betting the price will revert back downward.
+
+    Only triggers on the initial crossing into each band, not every
+    bar the condition remains true — without this, a stop-loss exit
+    followed by price still sitting below the lower band would cause
+    an immediate re-entry, and repeat every bar until price genuinely
+    moves back inside the bands. That whipsaw pattern was caught and
+    fixed during backtesting (see project write-up).
     """
 
     def __init__(self, window: int = 20, num_std: float = 2.0):
@@ -23,7 +36,16 @@ class MeanReversion(Strategy):
         lower_band = rolling_mean - (self.num_std * rolling_std)
 
         signals = pd.Series(Signal.HOLD, index=data.index)
-        signals[data["close"] < lower_band] = Signal.BUY
-        signals[data["close"] > upper_band] = Signal.SELL
+
+        below_lower = data["close"] < lower_band
+        above_upper = data["close"] > upper_band
+
+        # Same crossing-detection pattern as MovingAverageCrossover:
+        # only fire on the bar where the condition first becomes true.
+        entered_below = below_lower & (~below_lower.shift(1, fill_value=False))
+        entered_above = above_upper & (~above_upper.shift(1, fill_value=False))
+
+        signals[entered_below] = Signal.BUY
+        signals[entered_above] = Signal.SELL
 
         return signals
